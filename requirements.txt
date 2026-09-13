@@ -1,0 +1,34 @@
+# Office Legal File Manager - Dependencies
+# All free & open-source
+
+# Web Server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Database
+aiofiles==24.1.0
+
+# PDF Parsing
+pdfplumber==0.11.4
+
+# DOCX Parsing
+python-docx==1.1.2
+
+# Image OCR
+pytesseract==0.3.13
+Pillow==11.1.0
+
+# Semantic Embeddings (CPU-only)
+sentence-transformers==3.3.1
+
+# Auto-tagging (keyword extraction)
+scikit-learn==1.6.1
+numpy==2.2.2
+
+# CLI Tool
+click==8.1.8
+rich==13.9.4
+openpyxl==3.1.5
+xlrd==2.0.1
+extract-msg==0.52.0

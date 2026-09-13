@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Legal File Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="toast-container"></div>
+
+    <div class="app-background">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <!-- View: Department Selection -->
+    <div id="view-department" class="view active">
+        <div class="department-container">
+            <h1 class="gradient-text">Welcome to OLFM</h1>
+            <p class="subtitle">Select your department to continue</p>
+            <div id="department-grid" class="department-grid">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- View: Dashboard -->
+    <div id="view-dashboard" class="view">
+        <nav class="top-nav glass-panel">
+            <div class="nav-left">
+                <div class="logo">⚖️ <span class="gradient-text">OLFM</span></div>
+                <div class="current-dept-badge" id="current-dept-display">Legal</div>
+            </div>
+            <div class="nav-center">
+                <div class="search-wrapper glass-input-wrapper" style="position: relative;">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-input" placeholder="Search files, contents, or tags...">
+                    <ul id="search-dropdown" class="search-dropdown hidden glass-panel"></ul>
+                </div>
+            </div>
+            <div class="nav-right">
+                <button class="btn btn-glass" id="btn-switch-dept">Switch Dept</button>
+                <button class="btn btn-primary" id="btn-open-upload">
+                    <span>➕</span> Upload
+                </button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <!-- Normal File View -->
+            <div id="normal-view-container">
+                <div class="section-header">
+                    <h2>Recent Files</h2>
+                    <span class="file-count" id="file-count-display">0 files</span>
+                </div>
+                <div id="file-grid" class="file-grid">
+                    <!-- Populated via JS -->
+                </div>
+                <div id="empty-state-files" class="empty-state hidden">
+                    <div class="empty-icon">📁</div>
+                    <h3>No files found</h3>
+                    <p>Upload a file to get started.</p>
+                </div>
+            </div>
+
+            <!-- Search Results View -->
+            <div id="search-view-container" class="hidden">
+                <div class="section-header search-header">
+                    <div>
+                        <h2>Search Results</h2>
+                        <p class="search-meta" id="search-meta-display">Found 0 results in 0ms</p>
+                    </div>
+                    <button class="btn btn-glass" id="btn-clear-search">Clear Search</button>
+                </div>
+                <div id="did-you-mean-container" class="did-you-mean-banner hidden">
+                    <span>Did you mean: <a href="#" id="did-you-mean-link">word</a>?</span>
+                </div>
+                
+                <div id="exact-results-container">
+                    <h3 class="search-section-title">Exact Keyword Matches</h3>
+                    <div id="exact-results-list" class="search-results-list">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <div id="semantic-results-container">
+                    <h3 class="search-section-title">Semantic Matches</h3>
+                    <div id="semantic-results-list" class="search-results-list">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+                <div id="empty-state-search" class="empty-state hidden">
+                    <div class="empty-icon">🔍</div>
+                    <h3>No matching results</h3>
+                    <p>Try adjusting your search terms.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal: Upload -->
+    <div id="modal-upload" class="modal-backdrop hidden">
+        <div class="modal glass-panel">
+            <div class="modal-header">
+                <h3>Upload Document</h3>
+                <button class="btn-close" id="btn-close-upload">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="upload-form">
+                    <div class="drop-zone" id="drop-zone">
+                        <div class="drop-icon">📥</div>
+                        <p>Drag & drop your file here or <span>browse</span></p>
+                        <input type="file" id="file-input" hidden required multiple>
+                        <div id="file-preview" class="file-preview hidden">
+                            <span id="preview-icon">📄</span>
+                            <span id="preview-name">filename.pdf</span>
+                            <span id="preview-size">(1.2 MB)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="upload-title">Title *</label>
+                        <input type="text" id="upload-title" class="glass-input" placeholder="Enter document title (optional)">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="upload-category">Category *</label>
+                        <select id="upload-category" class="glass-input" required>
+                            <option value="" disabled selected>Select category...</option>
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="upload-notes">Notes</label>
+                        <textarea id="upload-notes" class="glass-input" rows="3" placeholder="Optional notes..."></textarea>
+                    </div>
+
+                    <div id="upload-progress-container" class="progress-container hidden">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="upload-progress-fill"></div>
+                        </div>
+                        <span class="progress-text" id="upload-progress-text">Uploading...</span>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-glass" id="btn-cancel-upload">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="btn-submit-upload">Upload File</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: File Detail -->
+    <div id="modal-file-detail" class="modal-backdrop hidden">
+        <div class="modal modal-lg glass-panel">
+            <div class="modal-header">
+                <div class="detail-title-wrapper">
+                    <span class="type-icon" id="detail-icon">📄</span>
+                    <h3 id="detail-title">Document Title</h3>
+                </div>
+                <button class="btn-close" id="btn-close-detail">✕</button>
+            </div>
+            <div class="modal-body detail-layout">
+                <div class="detail-sidebar">
+                    <div class="detail-meta-group">
+                        <label>Category</label>
+                        <div id="detail-category" class="badge badge-category">Contract</div>
+                    </div>
+                    <div class="detail-meta-group">
+                        <label>Uploaded</label>
+                        <div id="detail-date">Oct 24, 2023</div>
+                    </div>
+                    <div class="detail-meta-group">
+                        <label>File Size</label>
+                        <div id="detail-size">2.4 MB</div>
+                    </div>
+                    
+                    <div class="detail-meta-group">
+                        <label>Auto-Tags</label>
+                        <div id="detail-tags" class="tag-container">
+                            <!-- Tags via JS -->
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-content">
+                    <label>Extracted Text Preview</label>
+                    <div id="detail-preview" class="text-preview-box glass-input">
+                        Loading content preview...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions space-between">
+                <button class="btn btn-danger" id="btn-delete-file">🗑️ Delete</button>
+                <div class="action-group">
+                    <button class="btn btn-glass" id="btn-close-detail-alt">Close</button>
+                    <button class="btn btn-primary" id="btn-download-file">⬇️ Download</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
