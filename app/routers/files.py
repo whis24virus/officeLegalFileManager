@@ -37,6 +37,9 @@ from app.services.storage import save_file, delete_file, get_file_path
 from app.services.extractor import extract_text
 from app.services.tagger import generate_tags
 from app.services.embedder import embedder_service
+from app.services.chunker import chunk_text
+from app.services.llm import llm_service
+from app.services.qa_cache import qa_cache_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
@@ -73,29 +76,66 @@ def _doc_to_response(doc: dict) -> dict:
     }
 
 
-def process_file_background(doc_id: int, filepath: str, ext: str, original_filename: str, department: str):
-    """Heavy lifting background task: OCR, TF-IDF, and MiniLM."""
+def process_file_background(doc_id: int, filepath: str, ext: str, original_filename: str, department: str, title: str = ""):
+    """V3 background pipeline: Extract → Tag → Summarize → Chunk → Embed."""
     try:
-        # Step 2: Extract text
+        # Step 1: Extract text
         abs_path = get_file_path(filepath)
         extracted_text = extract_text(abs_path, ext)
-        logger.info(f"Background: Extracted {len(extracted_text)} chars of text from {original_filename}")
+        logger.info(f"Background: Extracted {len(extracted_text)} chars from {original_filename}")
 
-        # Step 3: Generate auto-tags
+        # Step 2: Generate auto-tags
         auto_tags = generate_tags(extracted_text)
         logger.info(f"Background: Generated {len(auto_tags)} auto-tags: {auto_tags}")
 
-        # Step 4: Generate embedding
+        # Step 3: Generate document summary (V3)
+        summary = ""
         try:
-            embedding = embedder_service.generate_embedding(extracted_text)
-            emb_id = embedder_service.add_embedding(department, doc_id, embedding)
+            summary = llm_service.generate_summary(extracted_text)
+            logger.info(f"Background: Generated summary ({len(summary)} chars)")
         except Exception as e:
-            logger.warning(f"Background: Embedding generation failed: {e}")
-            emb_id = -1
+            logger.warning(f"Background: Summary generation failed: {e}")
 
-        # Step 5: Update database
-        update_document_text_tags_embedding(doc_id, extracted_text, auto_tags, emb_id if emb_id else doc_id)
-        logger.info(f"Background: Completed processing for {original_filename}")
+        # Step 4: Chunk text and generate contextual embeddings (V3)
+        try:
+            chunks = chunk_text(extracted_text, chunk_size=500, overlap=50)
+            if chunks and len(chunks) > 1:
+                # Multi-chunk document: generate headers and embed each chunk
+                chunk_data = []
+                for chunk in chunks:
+                    header = ""
+                    try:
+                        header = llm_service.generate_chunk_header(chunk, title or original_filename)
+                    except Exception:
+                        pass  # Header is optional; chunk still gets embedded
+
+                    embed_text = f"{header}. {chunk}" if header else chunk
+                    embedding = embedder_service.generate_embedding(embed_text)
+                    chunk_data.append({
+                        "embedding": embedding,
+                        "text": chunk,
+                        "header": header,
+                    })
+
+                embedder_service.add_chunks(department, doc_id, chunk_data)
+                logger.info(f"Background: Stored {len(chunk_data)} chunks for {original_filename}")
+            else:
+                # Short document: store single document-level embedding
+                embedding = embedder_service.generate_embedding(extracted_text)
+                embedder_service.add_embedding(department, doc_id, embedding)
+        except Exception as e:
+            logger.warning(f"Background: Embedding/chunking failed: {e}")
+
+        # Step 5: Update database with text, tags, and summary
+        update_document_text_tags_embedding(doc_id, extracted_text, auto_tags, doc_id)
+        from app.database import update_document_summary
+        if summary:
+            update_document_summary(doc_id, summary)
+
+        # Step 6: Invalidate QA cache for this department (V3)
+        qa_cache_service.invalidate(department)
+
+        logger.info(f"Background: Completed V3 processing for {original_filename}")
     except Exception as e:
         logger.error(f"Background processing failed for {original_filename}: {e}")
         update_document_text_tags_embedding(doc_id, "", ["❌ Error"], -1)
@@ -161,7 +201,8 @@ async def upload_file(
         filepath=filepath,
         ext=ext,
         original_filename=original_filename,
-        department=department
+        department=department,
+        title=title,
     )
 
     # ── Return the saved document immediately ──
@@ -253,5 +294,7 @@ def delete_file_endpoint(file_id: int, department: str = Depends(get_current_dep
     deleted = delete_document(file_id, department)
 
     if deleted:
+        # V3: Invalidate QA cache when files change
+        qa_cache_service.invalidate(department)
         return {"message": "File deleted successfully", "success": True}
     return {"message": "File could not be deleted", "success": False}

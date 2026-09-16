@@ -135,6 +135,14 @@ def init_db():
         )
 
     conn.commit()
+
+    # ─── V3: Migration — Add summary column if not present ──────
+    try:
+        cursor.execute("ALTER TABLE documents ADD COLUMN summary TEXT DEFAULT ''")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists — safe to ignore
+
     conn.close()
 
 
@@ -249,6 +257,28 @@ def delete_document(doc_id: int, department: str) -> bool:
     conn.commit()
     conn.close()
     return deleted
+
+
+def update_document_summary(doc_id: int, summary: str) -> None:
+    """Store a pre-computed LLM summary for a document."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE documents SET summary = ? WHERE id = ?",
+        (summary, doc_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_document_summary(doc_id: int) -> str:
+    """Retrieve the pre-computed summary for a document."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT summary FROM documents WHERE id = ?",
+        (doc_id,)
+    ).fetchone()
+    conn.close()
+    return row["summary"] if row and row["summary"] else ""
 
 
 def search_fts(query: str, department: str, limit: int = 20) -> list:

@@ -31,7 +31,7 @@ from app.config import (
 )
 from app.database import init_db, get_all_departments, add_department
 from app.auth import set_department_cookie
-from app.routers import files, search
+from app.routers import files, search, rag
 
 # ─── Logging Setup ──────────────────────────────────────────────
 logging.basicConfig(
@@ -63,6 +63,19 @@ async def lifespan(app: FastAPI):
             logger.info(f"  ✅ Created department: {dept}")
 
     logger.info(f"📂 Departments: {get_all_departments()}")
+
+    # ── V3: Preload AI models into memory during boot ──
+    from app.services.embedder import embedder_service
+    from app.services.llm import llm_service
+    logger.info("🧠 Preloading Embedding model (BGE-Large)...")
+    embedder_service._load_model()
+    logger.info("🤖 Preloading LLM model (Flan-T5)...")
+    llm_service._load_model()
+    logger.info("🔀 Preloading Cross-Encoder Re-Ranker...")
+    from app.services.reranker import reranker_service
+    reranker_service._load_model()
+    logger.info("✅ All AI models loaded and ready!")
+
     logger.info(f"🌐 Server ready at http://localhost:{PORT}")
     yield
     logger.info("👋 Shutting down Office Legal File Manager.")
@@ -83,6 +96,7 @@ os.makedirs(static_dir, exist_ok=True)
 # ─── Include API Routers ───────────────────────────────────────
 app.include_router(files.router, prefix="/api/files")
 app.include_router(search.router, prefix="/api")
+app.include_router(rag.router, prefix="/api")
 
 
 # ─── Root: Serve the SPA ───────────────────────────────────────

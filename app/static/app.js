@@ -27,6 +27,9 @@ const els = {
     semanticResultsContainer: document.getElementById('semantic-results-container'),
     exactResultsList: document.getElementById('exact-results-list'),
     semanticResultsList: document.getElementById('semantic-results-list'),
+    aiAnswerCard: document.getElementById('ai-answer-card'),
+    aiAnswerText: document.getElementById('ai-answer-text'),
+    aiSourceFile: document.getElementById('ai-source-file'),
     didYouMeanContainer: document.getElementById('did-you-mean-container'),
     didYouMeanLink: document.getElementById('did-you-mean-link'),
     searchDropdown: document.getElementById('search-dropdown'),
@@ -126,27 +129,51 @@ const debounce = (func, wait) => {
 
 // API Wrapper
 const api = {
-    async get(endpoint) {
-        const res = await fetch(endpoint, { credentials: 'login' === 'login' ? 'same-origin' : 'include' });
-        if (!res.ok) throw new Error(await res.text() || res.statusText);
-        return res.json();
+    get: async (url, timeoutMs = 45000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        } catch (err) {
+            clearTimeout(timeoutId);
+            throw err;
+        }
     },
     async post(endpoint, data, isFormData = false) {
-        const options = { method: 'POST', credentials: 'login' === 'login' ? 'same-origin' : 'include' };
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const options = { method: 'POST', signal: controller.signal, credentials: 'login' === 'login' ? 'same-origin' : 'include' };
         if (isFormData) {
             options.body = data;
         } else {
             options.headers = { 'Content-Type': 'application/json' };
             options.body = JSON.stringify(data);
         }
-        const res = await fetch(endpoint, options);
-        if (!res.ok) throw new Error(await res.text() || res.statusText);
-        return res.json();
+        try {
+            const res = await fetch(endpoint, options);
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(await res.text() || res.statusText);
+            return res.json();
+        } catch (err) {
+            clearTimeout(timeoutId);
+            throw err;
+        }
     },
     async delete(endpoint) {
-        const res = await fetch(endpoint, { method: 'DELETE', credentials: 'login' === 'login' ? 'same-origin' : 'include' });
-        if (!res.ok) throw new Error(await res.text() || res.statusText);
-        return res.json();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        try {
+            const res = await fetch(endpoint, { method: 'DELETE', signal: controller.signal, credentials: 'login' === 'login' ? 'same-origin' : 'include' });
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(await res.text() || res.statusText);
+            return res.json();
+        } catch (err) {
+            clearTimeout(timeoutId);
+            throw err;
+        }
     }
 };
 
@@ -324,10 +351,37 @@ const renderResultCard = (res, query) => {
     `;
 };
 
+const fetchSemanticSearch = async (query, excludeIds) => {
+    try {
+        els.semanticResultsList.innerHTML = '<div class="spinner" style="margin: 2rem auto; zoom: 0.5;"></div>';
+        els.semanticResultsContainer.classList.remove('hidden');
+        
+        const data = await api.get(`/api/search/semantic?q=${encodeURIComponent(query)}&limit=10&exclude_ids=${excludeIds.join(',')}`);
+        
+        if (data.semantic_matches && data.semantic_matches.length > 0) {
+            els.semanticResultsList.innerHTML = data.semantic_matches.map(r => renderResultCard(r, query)).join('');
+            document.querySelectorAll('#semantic-results-list .search-result-card').forEach(card => {
+                card.addEventListener('click', () => openFileDetail(card.dataset.id));
+            });
+        } else {
+            els.semanticResultsContainer.classList.add('hidden');
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            els.semanticResultsContainer.classList.add('hidden');
+            console.error('Semantic search failed:', err);
+        }
+    }
+};
+
+const debouncedSemanticSearch = debounce(fetchSemanticSearch, 500);
+
+let currentExactIds = [];
+
 const handleSearch = async (query) => {
     if (!query.trim()) {
         showNormalView();
-        els.ghostText.innerHTML = '';
+        if (els.ghostText) els.ghostText.innerHTML = '';
         currentSuggestion = '';
         return;
     }
@@ -339,11 +393,12 @@ const handleSearch = async (query) => {
     els.semanticResultsContainer.classList.add('hidden');
     els.didYouMeanContainer.classList.add('hidden');
     els.emptyStateSearch.classList.add('hidden');
+    if(els.aiAnswerCard) els.aiAnswerCard.classList.add('hidden');
     
     try {
-        const data = await api.get(`/api/search?q=${encodeURIComponent(query)}&limit=20`);
-        const total = (data.exact_matches?.length || 0) + (data.semantic_matches?.length || 0);
-        els.searchMetaDisplay.textContent = `Found ${total} results in ${data.search_time_ms || 0}ms`;
+        const data = await api.get(`/api/search/exact?q=${encodeURIComponent(query)}&limit=20`);
+        const total = (data.exact_matches?.length || 0);
+        els.searchMetaDisplay.textContent = `Found ${total} exact results in ${data.search_time_ms || 0}ms`;
         
         // Handle Dropdown Suggestions
         els.searchDropdown.innerHTML = '';
@@ -384,40 +439,151 @@ const handleSearch = async (query) => {
             };
         }
         
-        if (total === 0) {
-            els.exactResultsContainer.classList.add('hidden');
-            els.semanticResultsContainer.classList.add('hidden');
-            els.emptyStateSearch.classList.remove('hidden');
-            return;
-        }
-        
         // Render Exact Matches
         if (data.exact_matches && data.exact_matches.length > 0) {
             els.exactResultsContainer.classList.remove('hidden');
             els.exactResultsList.innerHTML = data.exact_matches.map(r => renderResultCard(r, query)).join('');
+            currentExactIds = data.exact_matches.map(r => r.id);
         } else {
             els.exactResultsContainer.classList.add('hidden');
+            currentExactIds = [];
         }
         
-        // Render Semantic Matches
-        if (data.semantic_matches && data.semantic_matches.length > 0) {
-            els.semanticResultsContainer.classList.remove('hidden');
-            els.semanticResultsList.innerHTML = data.semantic_matches.map(r => renderResultCard(r, query)).join('');
-        } else {
-            els.semanticResultsContainer.classList.add('hidden');
-        }
-        
-        document.querySelectorAll('.search-result-card').forEach(card => {
+        document.querySelectorAll('#exact-results-list .search-result-card').forEach(card => {
             card.addEventListener('click', () => openFileDetail(card.dataset.id));
         });
+
+        // Fire Semantic Search in the background with a 500ms debounce
+        if (query.trim().length >= 3) {
+            debouncedSemanticSearch(query, currentExactIds);
+        }
+
+        // V3: Two-Phase Async Response — fire RAG request in background
+        if (data.is_question && (total > 0 || query.trim().length >= 3)) {
+            // Show "Thinking..." animation immediately
+            els.aiAnswerCard.classList.remove('hidden');
+            els.aiAnswerText.innerHTML = '<span class="ai-thinking">Thinking<span class="dot-1">.</span><span class="dot-2">.</span><span class="dot-3">.</span></span>';
+            els.aiSourceFile.textContent = '';
+            
+            // Fire async RAG request
+            debouncedFetchRAGAnswer(query);
+        } else {
+            if(els.aiAnswerCard) els.aiAnswerCard.classList.add('hidden');
+        }
+        
+        if (total === 0 && query.trim().length < 3 && !data.did_you_mean) {
+            els.emptyStateSearch.classList.remove('hidden');
+        }
         
     } catch (err) {
-        showToast('Search failed', 'error');
-        showNormalView();
+        if (err.name !== 'AbortError') {
+            showToast('Search failed', 'error');
+            showNormalView();
+        }
     }
 };
 
 const debouncedSearch = debounce(handleSearch, 50);
+const debouncedFetchRAGAnswer = debounce((query) => fetchRAGAnswer(query), 500);
+
+// Simple Markdown Parser for AI Answer
+const parseMarkdown = (text) => {
+    if (!text) return '';
+    // Escape HTML to prevent XSS
+    let safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    
+    // Parse lists (* or -)
+    const lines = safe.split('\n');
+    let inList = false;
+    let html = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        
+        if (line.startsWith('* ') || line.startsWith('- ') || /^\d+\.\s/.test(line)) {
+            let content = line.replace(/^(\* |- |\d+\.\s)/, '');
+            if (!inList) {
+                html += '<ul>\n';
+                inList = true;
+            }
+            html += `<li>${content}</li>\n`;
+        } else {
+            if (inList) {
+                html += '</ul>\n';
+                inList = false;
+            }
+            if (line) {
+                html += `<p>${line}</p>\n`;
+            }
+        }
+    }
+    if (inList) html += '</ul>\n';
+    
+    // Parse bold
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    return html;
+};
+
+// V5: Async RAG Answer Fetcher using SSE Streaming
+const fetchRAGAnswer = async (query) => {
+    let controller = new AbortController();
+    try {
+        const response = await fetch(`/api/rag?q=${encodeURIComponent(query)}`, {
+            signal: controller.signal
+        });
+        
+        if (!response.ok) {
+            throw new Error(await response.text());
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let fullAnswer = "";
+        
+        els.aiAnswerText.innerHTML = '';
+        els.aiAnswerCard.classList.remove('hidden');
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.substring(6));
+                        
+                        if (data.source) {
+                            els.aiSourceFile.textContent = data.source;
+                        }
+                        
+                        if (data.chunk) {
+                            fullAnswer += data.chunk;
+                            els.aiAnswerText.innerHTML = parseMarkdown(fullAnswer);
+                        }
+                        
+                        if (data.done) {
+                            break;
+                        }
+                    } catch (e) {
+                        console.error("Error parsing SSE chunk:", e, line);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('RAG fetch failed:', err);
+        if (err.name === 'AbortError') {
+            els.aiAnswerText.textContent = "Answer generation timed out. Please try again.";
+        } else {
+            els.aiAnswerText.textContent = "An error occurred while generating the answer.";
+        }
+        els.aiSourceFile.textContent = '';
+    }
+};
 
 // File Detail Logic
 const openFileDetail = async (id) => {

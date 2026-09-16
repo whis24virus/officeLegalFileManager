@@ -94,7 +94,20 @@
                         <!-- Populated via JS -->
                     </div>
                 </div>
-                <div id="empty-state-search" class="empty-state hidden">
+                
+                <div id="ai-answer-card" class="ai-answer-card hidden">
+                    <div class="ai-header">
+                        <span class="material-icons-round ai-icon">auto_awesome</span>
+                        <h3>Smart Insights</h3>
+                    </div>
+                    <div id="ai-answer-text" class="ai-answer-text"></div>
+                    <div class="ai-source">
+                        <span class="material-icons-round">description</span>
+                        Source: <span id="ai-source-file"></span>
+                    </div>
+                </div>
+
+                <div id="empty-state-search" class="results-section hidden">
                     <div class="empty-icon">🔍</div>
                     <h3>No matching results</h3>
                     <p>Try adjusting your search terms.</p>

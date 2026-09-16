@@ -15,7 +15,9 @@ graph TD
         Upload[Upload Manager]
         Ext[Text Extractor]
         Tag[Auto-Tagger]
-        Search[Hybrid Search Engine]
+        SearchExact[Exact Search Engine]
+        SearchSemantic[Semantic Search Engine]
+        RAG[LLM Streaming Engine]
     end
     
     subgraph Storage & Data
@@ -28,9 +30,12 @@ graph TD
     User <--> WebUI
     Admin([System Admin]) <--> CLI
     WebUI <--> Upload
-    WebUI <--> Search
+    WebUI <--> SearchExact
+    WebUI <--> SearchSemantic
+    WebUI <--> RAG
     CLI <--> Upload
-    CLI <--> Search
+    CLI <--> SearchExact
+    CLI <--> SearchSemantic
     
     Upload --> Ext
     Ext --> Tag
@@ -39,9 +44,10 @@ graph TD
     Tag --> FTS
     Tag --> VectorDB
     
-    Search --> SQLite
-    Search --> FTS
-    Search --> VectorDB
+    SearchExact --> SQLite
+    SearchExact --> FTS
+    SearchSemantic --> VectorDB
+    RAG --> SearchSemantic
 ```
 
 ## 3. Tech Stack Explained
@@ -93,14 +99,13 @@ Traditional search fails if a user types "rental contract" but the document says
 *   **Cosine Similarity**: When a user searches, their query is also converted to a vector. We calculate the Cosine Similarity (the cosine of the angle between the two vectors). A score closer to 1.0 means high similarity; 0 means unrelated.
 *   Vectors are stored efficiently on disk using `.npy` files or a vector database like FAISS for fast nearest-neighbor lookups.
 
-## 8. Hybrid Search Strategy
+## 8. Hybrid Search Strategy (Decoupled Production Architecture)
 
-Relying purely on semantic search can sometimes miss exact keyword matches (like finding a specific ID number).
-The Hybrid Search combines both:
-1.  **FTS5 Search**: Retrieves exact keyword matches and assigns a rank score.
-2.  **Semantic Search**: Retrieves conceptually similar documents and assigns a cosine similarity score.
-3.  **Normalization & Fusion**: Both scores are normalized to a 0-1 scale. A weighted average (e.g., 60% semantic, 40% keyword) is calculated for documents appearing in both sets.
-4.  The results are deduplicated and returned sorted by the combined hybrid score.
+In a production environment, exact matches must be instantaneous while semantic/AI operations are heavier. Thus, the search is fully decoupled:
+1.  **FTS5 Exact Search (`/api/search/exact`)**: Triggers instantly on keystroke. Retrieves exact keyword matches in milliseconds.
+2.  **Semantic Search (`/api/search/semantic`)**: Triggers after a debounce. Retrieves conceptually similar documents via ChromaDB and assigns a cosine similarity score.
+3.  **Cross-Encoder Re-Ranking**: Reranks the top semantic results using `ms-marco-MiniLM` for ultra-high precision.
+4.  **LLM Token Streaming (`/api/rag`)**: Uses Server-Sent Events (SSE) to stream generated RAG answers token-by-token directly to the UI, resulting in zero perceived latency.
 
 ## 9. Department Isolation Security Model
 
@@ -126,7 +131,9 @@ The system utilizes a hard-scoped architectural security model:
 *   `POST /auth/login` - Authenticates user into a department session.
 *   `GET /api/documents` - Lists files for the current department.
 *   `POST /api/upload` - Multipart form upload endpoint.
-*   `GET /api/search?q=query` - Performs the hybrid search.
+*   `GET /api/search/exact?q=query` - Performs the instant exact keyword search.
+*   `GET /api/search/semantic?q=query` - Performs the semantic embedding search.
+*   `GET /api/rag?q=query` - Streams the LLM RAG response via Server-Sent Events (SSE).
 *   `DELETE /api/documents/{id}` - Soft/Hard deletes a file.
 
 ## 12. CLI Reference

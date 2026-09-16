@@ -53,11 +53,10 @@ FILE_CATEGORIES = [
     "Letter", "Policy", "Other"
 ]
 
-# ─── MiniLM Embedding Model ────────────────────────────────────
-# all-MiniLM-L6-v2: 384-dimensional embeddings, ~80MB, runs on CPU
-# Downloads automatically on first use and caches locally
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDING_DIMENSION = 384  # Output vector size for this model
+# ─── V2/V4: AI Services Settings ─────────────────────────────────
+EMBEDDING_MODEL_NAME = "BAAI/bge-large-en-v1.5"
+EMBEDDING_DIMENSION = 1024  # Output vector size for this model
+LLM_MODEL_NAME = "google/flan-t5-large"  # Upgraded in V4 for better logical filtering (~3GB RAM)
 
 # ─── Auto-Tagging Settings ─────────────────────────────────────
 MAX_AUTO_TAGS = 10          # Maximum number of auto-generated tags per file
@@ -69,6 +68,14 @@ SEARCH_RESULTS_LIMIT = 20          # Max results returned per search
 FTS_WEIGHT = 0.7                   # Weight for keyword (FTS5) results (boosted to favor exact matches)
 SEMANTIC_WEIGHT = 0.3              # Weight for semantic (vector) results
 SNIPPET_LENGTH = 200               # Characters of text snippet in results
+
+# ─── V3: Chunk-Level Embedding Settings ────────────────────────
+CHUNK_SIZE = 500                   # Target characters per chunk
+CHUNK_OVERLAP = 50                 # Overlap characters between chunks
+
+# ─── V3: Cross-Encoder Re-Ranking ──────────────────────────────
+RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # ~80MB, fast
+RERANK_TOP_K = 20                  # Number of candidates to re-rank
 
 # ─── Server Settings ───────────────────────────────────────────
 HOST = "0.0.0.0"

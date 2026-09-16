@@ -32,3 +32,6 @@ rich==13.9.4
 openpyxl==3.1.5
 xlrd==2.0.1
 extract-msg==0.52.0
+chromadb
+transformers
+torch
