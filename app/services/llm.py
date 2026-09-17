@@ -105,9 +105,8 @@ Answer:"""
                 input_ids = self._tokenizer(prompt, return_tensors="pt").input_ids.to(self._device)
                 outputs = self._model.generate(
                     input_ids,
-                    max_length=256,
-                    num_beams=1,
-                    early_stopping=True
+                    max_new_tokens=512,
+                    num_beams=1
                 )
             answer = self._tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
             return {"answer": answer, "source": filename}
@@ -157,9 +156,8 @@ Answer:"""
                     self._model.generate(
                         input_ids,
                         streamer=streamer,
-                        max_length=256,
-                        num_beams=1,
-                        early_stopping=True
+                        max_new_tokens=512,
+                        num_beams=1
                     )
 
             thread = Thread(target=generate_func)
