@@ -492,6 +492,11 @@ const parseMarkdown = (text) => {
     // Escape HTML to prevent XSS
     let safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     
+    // Auto-fix Flan-T5 collapsed lists (e.g., "Item 1 2. Item 2" -> "Item 1\n2. Item 2")
+    safe = safe.replace(/ (\d+\.\s)/g, '\n$1');
+    safe = safe.replace(/ (\*\s)/g, '\n$1');
+    safe = safe.replace(/ (-\s)/g, '\n$1');
+    
     // Parse lists (* or -)
     const lines = safe.split('\n');
     let inList = false;
