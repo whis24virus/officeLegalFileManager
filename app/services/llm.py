@@ -90,20 +90,13 @@ class LLMService:
         combined_context = context_text
         question = query
 
-        prompt = f"""
-You are an intelligent data assistant answering a specific user question based ONLY on the provided context.
-If the question asks you to filter or find specific items (e.g. "games with creed"), you MUST strictly apply that filter and ONLY return items that match.
-Always format your answer beautifully:
-- Use bullet points (* or -) for lists of items.
-- Use line breaks between paragraphs.
+        prompt = f"""Read the following document context carefully. Answer the question specifically using the data provided.
 
 Context:
-{combined_context}
+{context_text}
 
-Question: {question}
-
-Answer strictly matching the criteria, formatted with bullet points if applicable:
-"""
+Question: {query}
+Answer:"""
 
         try:
             with self._lock:
@@ -143,20 +136,13 @@ Answer strictly matching the criteria, formatted with bullet points if applicabl
         if summary and len(summary) > 20:
             context_text = f"Document Summary: {summary}\n\nSpecific Excerpt:\n{raw_text}"
 
-        prompt = f"""
-You are an intelligent data assistant answering a specific user question based ONLY on the provided context.
-If the question asks you to filter or find specific items (e.g. "games with creed"), you MUST strictly apply that filter and ONLY return items that match.
-Always format your answer beautifully:
-- Use bullet points (* or -) for lists of items.
-- Use line breaks between paragraphs.
+        prompt = f"""Read the following document context carefully. Answer the question specifically using the data provided.
 
 Context:
 {context_text}
 
 Question: {query}
-
-Answer strictly matching the criteria, formatted with bullet points if applicable:
-"""
+Answer:"""
 
         try:
             input_ids = self._tokenizer(prompt, return_tensors="pt").input_ids.to(self._device)
