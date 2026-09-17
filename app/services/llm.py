@@ -92,6 +92,7 @@ class LLMService:
 
         prompt = f"""Read the following document context carefully. Answer the question specifically using the data provided.
 If the question asks for a list or multiple items, you must provide all matching items.
+Important: You must extract EVERY single item from the context that matches the query. Do not stop after the first item.
 
 Context:
 {context_text}
@@ -139,6 +140,7 @@ Answer:"""
 
         prompt = f"""Read the following document context carefully. Answer the question specifically using the data provided.
 If the question asks for a list or multiple items, you must provide all matching items.
+Important: You must extract EVERY single item from the context that matches the query. Do not stop after the first item.
 
 Context:
 {context_text}
