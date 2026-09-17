@@ -540,6 +540,7 @@ const fetchRAGAnswer = async (query) => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let fullAnswer = "";
+        let buffer = "";
         
         els.aiAnswerText.innerHTML = '';
         els.aiAnswerCard.classList.remove('hidden');
@@ -548,13 +549,16 @@ const fetchRAGAnswer = async (query) => {
             const { value, done } = await reader.read();
             if (done) break;
             
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
+            buffer += decoder.decode(value, { stream: true });
             
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf('\n\n')) >= 0) {
+                const message = buffer.slice(0, newlineIndex).trim();
+                buffer = buffer.slice(newlineIndex + 2);
+                
+                if (message.startsWith('data: ')) {
                     try {
-                        const data = JSON.parse(line.substring(6));
+                        const data = JSON.parse(message.substring(6));
                         
                         if (data.source) {
                             els.aiSourceFile.textContent = data.source;
@@ -566,10 +570,11 @@ const fetchRAGAnswer = async (query) => {
                         }
                         
                         if (data.done) {
+                            reader.cancel();
                             break;
                         }
                     } catch (e) {
-                        console.error("Error parsing SSE chunk:", e, line);
+                        console.error("Error parsing SSE chunk:", e, message);
                     }
                 }
             }
