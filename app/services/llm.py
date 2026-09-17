@@ -79,17 +79,13 @@ class LLMService:
         best_doc = contexts[0]
         filename = best_doc.get("filename", "Unknown")
 
-        # Prefer pre-computed summary for speed; fall back to raw text
+        # Prefer exact chunks retrieved by semantic search, but prepend summary for high-level context
         summary = best_doc.get("summary", "")
-        raw_text = best_doc.get("text", "")[:1000]
+        raw_text = best_doc.get("text", "")[:1200]
 
+        context_text = raw_text
         if summary and len(summary) > 20:
-            context_text = summary
-            # If the summary seems too short to answer, append some raw text
-            if len(summary) < 100 and raw_text:
-                context_text = f"{summary}\n\nAdditional detail: {raw_text[:800]}"
-        else:
-            context_text = raw_text
+            context_text = f"Document Summary: {summary}\n\nSpecific Excerpt:\n{raw_text}"
 
         combined_context = context_text
         question = query
@@ -139,15 +135,13 @@ Answer strictly matching the criteria, formatted with bullet points if applicabl
         best_doc = contexts[0]
         filename = best_doc.get("filename", "Unknown")
 
+        # Prefer exact chunks retrieved by semantic search, but prepend summary for high-level context
         summary = best_doc.get("summary", "")
-        raw_text = best_doc.get("text", "")[:1000]
+        raw_text = best_doc.get("text", "")[:1200]
 
+        context_text = raw_text
         if summary and len(summary) > 20:
-            context_text = summary
-            if len(summary) < 100 and raw_text:
-                context_text = f"{summary}\n\nAdditional detail: {raw_text[:800]}"
-        else:
-            context_text = raw_text
+            context_text = f"Document Summary: {summary}\n\nSpecific Excerpt:\n{raw_text}"
 
         prompt = f"""
 You are an intelligent data assistant answering a specific user question based ONLY on the provided context.
