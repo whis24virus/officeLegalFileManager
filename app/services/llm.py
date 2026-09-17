@@ -91,6 +91,7 @@ class LLMService:
         question = query
 
         prompt = f"""Read the following document context carefully. Answer the question specifically using the data provided.
+If the question asks for a list or multiple items, you must provide all matching items.
 
 Context:
 {context_text}
@@ -137,6 +138,7 @@ Answer:"""
             context_text = f"Document Summary: {summary}\n\nSpecific Excerpt:\n{raw_text}"
 
         prompt = f"""Read the following document context carefully. Answer the question specifically using the data provided.
+If the question asks for a list or multiple items, you must provide all matching items.
 
 Context:
 {context_text}
